@@ -1,7 +1,9 @@
-package org.shop.apiserver.controller;
+package org.zerock.mallapi.controller;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.shop.apiserver.dto.PageRequestDTO;
 import org.shop.apiserver.dto.PageResponseDTO;
 import org.shop.apiserver.dto.ProductDTO;
@@ -9,13 +11,19 @@ import org.shop.apiserver.service.ProductService;
 import org.shop.apiserver.util.CustomFileUtil;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 @RestController
 @RequiredArgsConstructor
@@ -28,7 +36,7 @@ public class ProductController {
 
   @PostMapping("/")
   public Map<String, Long> register(ProductDTO productDTO){
-    
+
     log.info("rgister: " + productDTO);
 
     List<MultipartFile> files = productDTO.getFiles();
@@ -39,22 +47,24 @@ public class ProductController {
 
     log.info(uploadFileNames);
 
-      try {
-          Thread.sleep(3000);
-      } catch (InterruptedException e) {
-          throw new RuntimeException(e);
-      }
-
-      //서비스 호출
+    //서비스 호출
     Long pno = productService.register(productDTO);
+
+    try {
+      Thread.sleep(2000);
+    } catch (InterruptedException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+
 
     return Map.of("result", pno);
   }
 
-  
+
   // @PostMapping("/")
   // public Map<String, String> register(ProductDTO productDTO){
-    
+
   //   log.info("rgister: " + productDTO);
 
   //   List<MultipartFile> files = productDTO.getFiles();
@@ -75,21 +85,32 @@ public class ProductController {
 
   }
 
+  @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_ADMIN')") //임시로 권한 설정
   @GetMapping("/list")
   public PageResponseDTO<ProductDTO> list(PageRequestDTO pageRequestDTO) {
 
     log.info("list............." + pageRequestDTO);
 
-    PageResponseDTO<ProductDTO> result = productService.getList(pageRequestDTO);
+    try {
+      Thread.sleep(1000);
+    } catch (InterruptedException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
 
-    log.info("result: " + result);
+    return productService.getList(pageRequestDTO);
 
-    return result;
-    
   }
 
   @GetMapping("/{pno}")
   public ProductDTO read(@PathVariable(name="pno") Long pno) {
+
+    try {
+      Thread.sleep(2000);
+    } catch (InterruptedException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
 
     return productService.get(pno);
   }
@@ -97,34 +118,28 @@ public class ProductController {
   @PutMapping("/{pno}")
   public Map<String, String> modify(@PathVariable(name="pno")Long pno, ProductDTO productDTO) {
 
-    productDTO.setPno(pno); 
+    productDTO.setPno(pno);
 
     ProductDTO oldProductDTO = productService.get(pno);
 
-    //기존의 파일들 (데이터베이스에 존재하는 파일들 - 수정 과정에서 삭제되었을 수 있음)  
+    //기존의 파일들 (데이터베이스에 존재하는 파일들 - 수정 과정에서 삭제되었을 수 있음)
     List<String> oldFileNames = oldProductDTO.getUploadFileNames();
-    
-    //새로 업로드 해야 하는 파일들  
+
+    //새로 업로드 해야 하는 파일들
     List<MultipartFile> files = productDTO.getFiles();
 
     //새로 업로드되어서 만들어진 파일 이름들
     List<String> currentUploadFileNames = fileUtil.saveFiles(files);
 
-    //화면에서 변화 없이 계속 유지된 파일들 
+    //화면에서 변화 없이 계속 유지된 파일들
     List<String> uploadedFileNames = productDTO.getUploadFileNames();
 
-    log.info("--------------------------------------------------");
-    log.info(uploadedFileNames);
-
-    //유지되는 파일들  + 새로 업로드된 파일 이름들이 저장해야 하는 파일 목록이 됨  
+    //유지되는 파일들  + 새로 업로드된 파일 이름들이 저장해야 하는 파일 목록이 됨
     if(currentUploadFileNames != null && currentUploadFileNames.size() > 0) {
 
       uploadedFileNames.addAll(currentUploadFileNames);
 
     }
-
-
-
     //수정 작업 
     productService.modify(productDTO);
 
@@ -133,8 +148,8 @@ public class ProductController {
       //지워야 하는 파일 목록 찾기 
       //예전 파일들 중에서 지워져야 하는 파일이름들 
       List<String> removeFiles =  oldFileNames
-      .stream()
-      .filter(fileName -> uploadedFileNames.indexOf(fileName) == -1).collect(Collectors.toList());
+              .stream()
+              .filter(fileName -> uploadedFileNames.indexOf(fileName) == -1).collect(Collectors.toList());
 
       //실제 파일 삭제 
       fileUtil.deleteFiles(removeFiles);
