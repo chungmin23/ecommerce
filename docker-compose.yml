@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: mariadb-apidb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root1234       # root 계정 비번
+      MYSQL_DATABASE: apidb               # 생성할 DB
+      MYSQL_USER: apidbuser               # 애플리케이션 계정
+      MYSQL_PASSWORD: apidbuser           # 애플리케이션 비번
+    ports:
+      - "3312:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+volumes:
+  mariadb_data:
