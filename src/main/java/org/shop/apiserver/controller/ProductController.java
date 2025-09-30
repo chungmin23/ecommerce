@@ -1,4 +1,4 @@
-package org.zerock.mallapi.controller;
+package org.shop.apiserver.controller;
 
 import java.util.List;
 import java.util.Map;
@@ -85,7 +85,7 @@ public class ProductController {
 
   }
 
-  @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_ADMIN')") //임시로 권한 설정
+//  @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_ADMIN')") //임시로 권한 설정
   @GetMapping("/list")
   public PageResponseDTO<ProductDTO> list(PageRequestDTO pageRequestDTO) {
 

@@ -39,6 +39,10 @@ public class CustomSecurityConfig {
     
     log.info("---------------------security config---------------------------");
 
+    // 모든 요청 허용
+    http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+
+
     http.cors(httpSecurityCorsConfigurer -> {
       httpSecurityCorsConfigurer.configurationSource(corsConfigurationSource());
     });
@@ -47,6 +51,7 @@ public class CustomSecurityConfig {
 
     http.csrf(config -> config.disable());
 
+    /*
     http.formLogin(config -> {
       config.loginPage("/api/member/login");
       config.successHandler(new APILoginSuccessHandler());
@@ -58,7 +63,7 @@ public class CustomSecurityConfig {
     http.exceptionHandling(config -> {
       config.accessDeniedHandler(new CustomAccessDeniedHandler());
     });
-
+    */
 
     return http.build();
   }
