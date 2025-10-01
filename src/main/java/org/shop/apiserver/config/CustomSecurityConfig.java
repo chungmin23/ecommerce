@@ -27,7 +27,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @EnableMethodSecurity
 public class CustomSecurityConfig {
-
+    
+  // 비밀번호 암호화 인코더
   @Bean
   public PasswordEncoder passwordEncoder(){
     return new BCryptPasswordEncoder();
@@ -39,19 +40,22 @@ public class CustomSecurityConfig {
     
     log.info("---------------------security config---------------------------");
 
-    // 모든 요청 허용
-    http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+    // 모든 요청 허용 -- 시큐리티 설정 해지용
+    //http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
 
 
+    //Cross-Origin 요청 허용 설정
     http.cors(httpSecurityCorsConfigurer -> {
       httpSecurityCorsConfigurer.configurationSource(corsConfigurationSource());
     });
 
+    //세션 관리
     http.sessionManagement(sessionConfig ->  sessionConfig.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
+    //CSRF 비활성화
     http.csrf(config -> config.disable());
 
-    /*
+
     http.formLogin(config -> {
       config.loginPage("/api/member/login");
       config.successHandler(new APILoginSuccessHandler());
@@ -63,7 +67,7 @@ public class CustomSecurityConfig {
     http.exceptionHandling(config -> {
       config.accessDeniedHandler(new CustomAccessDeniedHandler());
     });
-    */
+
 
     return http.build();
   }
