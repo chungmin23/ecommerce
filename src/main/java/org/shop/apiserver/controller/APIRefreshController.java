@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.Map;
 
+//refresh 토큰을 이용한 토큰 갱신 
 @RestController
 @RequiredArgsConstructor
 @Log4j2
