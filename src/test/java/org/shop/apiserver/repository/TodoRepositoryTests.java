@@ -3,7 +3,8 @@ package org.shop.apiserver.repository;
 import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
-import org.shop.apiserver.domain.Todo;
+import org.shop.apiserver.domain.model.todo.Todo;
+import org.shop.apiserver.infrastructure.persistence.jpa.TodoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;

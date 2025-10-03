@@ -2,7 +2,16 @@ package org.shop.apiserver.repository;
 
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.Test;
-import org.shop.apiserver.domain.*;
+import org.shop.apiserver.domain.model.delivery.Delivery;
+import org.shop.apiserver.domain.model.delivery.DeliveryStatus;
+import org.shop.apiserver.domain.model.member.Member;
+import org.shop.apiserver.domain.model.order.OrderItem;
+import org.shop.apiserver.domain.model.order.OrderStatus;
+import org.shop.apiserver.domain.model.order.Orders;
+import org.shop.apiserver.domain.model.product.Product;
+import org.shop.apiserver.infrastructure.persistence.jpa.MemberRepository;
+import org.shop.apiserver.infrastructure.persistence.jpa.OrderRepository;
+import org.shop.apiserver.infrastructure.persistence.jpa.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Commit;

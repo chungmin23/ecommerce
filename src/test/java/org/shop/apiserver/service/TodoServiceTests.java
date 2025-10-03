@@ -3,9 +3,10 @@ package org.shop.apiserver.service;
 import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
-import org.shop.apiserver.dto.PageRequestDTO;
-import org.shop.apiserver.dto.PageResponseDTO;
-import org.shop.apiserver.dto.TodoDTO;
+import org.shop.apiserver.application.service.TodoService;
+import org.shop.apiserver.application.dto.PageRequestDTO;
+import org.shop.apiserver.application.dto.PageResponseDTO;
+import org.shop.apiserver.application.dto.TodoDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 

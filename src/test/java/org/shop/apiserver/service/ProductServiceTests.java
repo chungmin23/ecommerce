@@ -2,9 +2,10 @@ package org.shop.apiserver.service;
 
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.Test;
-import org.shop.apiserver.dto.PageRequestDTO;
-import org.shop.apiserver.dto.PageResponseDTO;
-import org.shop.apiserver.dto.ProductDTO;
+import org.shop.apiserver.application.service.ProductService;
+import org.shop.apiserver.application.dto.PageRequestDTO;
+import org.shop.apiserver.application.dto.PageResponseDTO;
+import org.shop.apiserver.application.dto.ProductDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
