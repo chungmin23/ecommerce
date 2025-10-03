@@ -22,4 +22,6 @@ public class OrderDTO {
     private DeliveryDTO delivery;  // 배송 정보
 
     private Long memberCouponId;  // 사용할 쿠폰 ID (옵션)
+
+    private String paymentMethod;  // 결제 수단 (CARD, TRANSFER 등)
 }

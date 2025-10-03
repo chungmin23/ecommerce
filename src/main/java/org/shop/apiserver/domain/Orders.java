@@ -47,6 +47,9 @@ public class Orders {
     @OneToOne(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private Delivery delivery;
 
+    @OneToOne(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Payment payment;
+
     // 주문 아이템 추가 헬퍼 메서드
     public void addOrderItem(OrderItem orderItem) {
         orderItems.add(orderItem);

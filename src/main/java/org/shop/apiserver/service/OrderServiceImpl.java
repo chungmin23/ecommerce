@@ -31,6 +31,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
+    private final PaymentService paymentService;  // 추가
 
     @Override
     public String createOrder(OrderDTO orderDTO) {
@@ -91,11 +92,15 @@ public class OrderServiceImpl implements OrderService {
         // 7. 주문 저장
         orderRepository.save(order);
 
-        // 8. 장바구니 비우기 (장바구니에서 주문한 경우)
-        // cartItemRepository에서 해당 회원의 장바구니 아이템 삭제
-        // 실제로는 주문한 상품만 삭제하도록 로직 개선 필요
+        // 8. 결제 자동 처리 (추가)
+        String paymentMethod = orderDTO.getPaymentMethod() != null ?
+                orderDTO.getPaymentMethod() : "CARD";
+        paymentService.processPayment(orderNumber, paymentMethod);
 
-        log.info("Order created: " + orderNumber);
+        // 9. 장바구니 비우기 (장바구니에서 주문한 경우)
+        // cartItemRepository에서 해당 회원의 장바구니 아이템 삭제
+
+        log.info("Order created and paid: " + orderNumber);
 
         return orderNumber;
     }
@@ -169,8 +174,10 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalStateException("취소할 수 없는 주문 상태입니다.");
         }
 
-        // 주문 상태 변경
-        order.changeStatus(OrderStatus.CANCELLED);
+        // 결제 취소 (추가)
+        if (order.getPayment() != null) {
+            paymentService.cancelPayment(order.getOrderNumber(), "사용자 주문 취소");
+        }
 
         // 재고 복구는 Phase 3에서 추가
 
