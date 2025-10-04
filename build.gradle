@@ -65,6 +65,8 @@ dependencies {
     implementation group: 'io.jsonwebtoken', name: 'jjwt-impl', version: '0.12.6'
     implementation group: 'io.jsonwebtoken', name: 'jjwt-jackson', version: '0.12.6'
 
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
 
 
     annotationProcessor(

@@ -3,6 +3,8 @@ package org.shop.apiserver.util;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.time.ZonedDateTime;
@@ -10,16 +12,22 @@ import java.util.Date;
 import java.util.Map;
 
 @Log4j2
+@Component
 public class JWTUtil {
 
-    private static String key = "1234567890123456789012345678901234567890";
+    private static String secretKey;
+
+    @Value("${jwt.secret-key}")
+    public void setSecretKey(String key) {
+        JWTUtil.secretKey = key;
+    }
 
     public static String generateToken(Map<String, Object> valueMap, int min) {
 
         SecretKey key = null;
 
         try {
-            key = Keys.hmacShaKeyFor(JWTUtil.key.getBytes("UTF-8"));
+            key = Keys.hmacShaKeyFor(JWTUtil.secretKey.getBytes("UTF-8"));
 
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
@@ -42,7 +50,7 @@ public class JWTUtil {
         SecretKey key = null;
 
         try {
-            key = Keys.hmacShaKeyFor(JWTUtil.key.getBytes("UTF-8"));
+            key = Keys.hmacShaKeyFor(JWTUtil.secretKey.getBytes("UTF-8"));
 
             Claims claims = Jwts.parser().verifyWith(key)
                     .build()
@@ -63,6 +71,6 @@ public class JWTUtil {
         }catch(Exception e){
             throw new CustomJWTException("Error");
         }
-    
+
     }
 }
