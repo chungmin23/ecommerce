@@ -37,7 +37,8 @@ public class OrderServiceImpl implements OrderService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
-    private final PaymentService paymentService;  // 추가
+    private final PaymentService paymentService;
+    private final CouponService couponService;  // 쿠폰 서비스 추가
 
     @Override
     public String createOrder(OrderDTO orderDTO) {
@@ -57,18 +58,36 @@ public class OrderServiceImpl implements OrderService {
             totalAmount += itemDTO.getPrice() * itemDTO.getQty();
         }
 
-        // 4. 주문 생성
+        // 4. 쿠폰 할인 적용 (추가)
+        int discountAmount = 0;
+        if (orderDTO.getMemberCouponId() != null) {
+            try {
+                discountAmount = couponService.useCoupon(
+                        orderDTO.getMemberCouponId(),
+                        orderDTO.getEmail(),
+                        totalAmount
+                );
+                log.info("Coupon discount applied: " + discountAmount);
+            } catch (Exception e) {
+                log.error("Coupon use failed: " + e.getMessage());
+                throw new IllegalStateException("쿠폰 사용 실패: " + e.getMessage());
+            }
+        }
+
+        int finalAmount = totalAmount - discountAmount;
+
+        // 5. 주문 생성
         Orders order = Orders.builder()
                 .orderNumber(orderNumber)
                 .member(member)
                 .totalAmount(totalAmount)
-                .discountAmount(0)  // 쿠폰은 Phase 4에서 추가
-                .finalAmount(totalAmount)
+                .discountAmount(discountAmount)
+                .finalAmount(finalAmount)
                 .orderDate(LocalDateTime.now())
                 .status(OrderStatus.PENDING)
                 .build();
 
-        // 5. 주문 아이템 추가
+        // 6. 주문 아이템 추가
         for (OrderItemDTO itemDTO : orderDTO.getOrderItems()) {
             Product product = productRepository.findById(itemDTO.getPno())
                     .orElseThrow(() -> new NoSuchElementException("상품을 찾을 수 없습니다."));
@@ -82,7 +101,7 @@ public class OrderServiceImpl implements OrderService {
             order.addOrderItem(orderItem);
         }
 
-        // 6. 배송 정보 추가
+        // 7. 배송 정보 추가
         DeliveryDTO deliveryDTO = orderDTO.getDelivery();
         Delivery delivery = Delivery.builder()
                 .receiverName(deliveryDTO.getReceiverName())
@@ -95,16 +114,16 @@ public class OrderServiceImpl implements OrderService {
 
         order.setDelivery(delivery);
 
-        // 7. 주문 저장
+        // 8. 주문 저장
         orderRepository.save(order);
 
-        // 8. 결제 자동 처리 (추가)
+        // 9. 결제 자동 처리
         String paymentMethod = orderDTO.getPaymentMethod() != null ?
                 orderDTO.getPaymentMethod() : "CARD";
         paymentService.processPayment(orderNumber, paymentMethod);
 
-        // 9. 장바구니 비우기 (장바구니에서 주문한 경우)
-        // cartItemRepository에서 해당 회원의 장바구니 아이템 삭제
+        // 10. 장바구니 비우기 (선택적)
+        // cartItemRepository에서 해당 회원의 장바구니 아이템 삭제 가능
 
         log.info("Order created and paid: " + orderNumber);
 
@@ -180,12 +199,13 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalStateException("취소할 수 없는 주문 상태입니다.");
         }
 
-        // 결제 취소 (추가)
+        // 결제 취소
         if (order.getPayment() != null) {
             paymentService.cancelPayment(order.getOrderNumber(), "사용자 주문 취소");
         }
 
-        // 재고 복구는 Phase 3에서 추가
+        // 주문 상태 변경
+        order.changeStatus(OrderStatus.CANCELLED);
 
         log.info("Order cancelled: " + order.getOrderNumber());
     }
