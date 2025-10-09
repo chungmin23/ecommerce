@@ -12,7 +12,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
@@ -24,7 +23,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
 
-    // Preflight요청은 체크하지 않음 
+    // Preflight요청은 체크하지 않음
     if(request.getMethod().equals("OPTIONS")){
       return true;
     }
@@ -33,27 +32,46 @@ public class JWTCheckFilter extends OncePerRequestFilter {
 
     log.info("check uri.............." + path);
 
-    //api/member/ 경로의 호출은 체크하지 않음 
+    //api/member/ 경로의 호출은 체크하지 않음
     if(path.startsWith("/api/member/")) {
       return true;
     }
 
-
-    //이미지 조회 경로는 체크하지 않는다면 
+    //이미지 조회 경로는 체크하지 않는다면
     if(path.startsWith("/api/products/view/")) {
+      return true;
+    }
+
+    // 상품 목록/상세 조회는 인증 없이 허용
+    if(path.startsWith("/api/products/list") || path.matches("/api/products/\\d+")) {
       return true;
     }
 
     return false;
   }
 
-
   @Override
-  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+          throws ServletException, IOException {
 
     log.info("------------------------JWTCheckFilter.......................");
 
     String authHeaderStr = request.getHeader("Authorization");
+
+    // Authorization 헤더 검증
+    if(authHeaderStr == null || !authHeaderStr.startsWith("Bearer ")) {
+      log.error("Authorization header is missing or invalid");
+
+      Gson gson = new Gson();
+      String msg = gson.toJson(Map.of("error", "ERROR_ACCESS_TOKEN"));
+
+      response.setContentType("application/json");
+      response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+      PrintWriter printWriter = response.getWriter();
+      printWriter.println(msg);
+      printWriter.close();
+      return;
+    }
 
     try {
       //Bearer accestoken...
@@ -61,8 +79,6 @@ public class JWTCheckFilter extends OncePerRequestFilter {
       Map<String, Object> claims = JWTUtil.validateToken(accessToken);
 
       log.info("JWT claims: " + claims);
-
-      //filterChain.doFilter(request, response); //이하 추가 
 
       String email = (String) claims.get("email");
       String pw = (String) claims.get("pw");
@@ -77,7 +93,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
       log.info(memberDTO.getAuthorities());
 
       UsernamePasswordAuthenticationToken authenticationToken
-      = new UsernamePasswordAuthenticationToken(memberDTO, pw, memberDTO.getAuthorities());
+              = new UsernamePasswordAuthenticationToken(memberDTO, pw, memberDTO.getAuthorities());
 
       SecurityContextHolder.getContext().setAuthentication(authenticationToken);
 
@@ -95,9 +111,6 @@ public class JWTCheckFilter extends OncePerRequestFilter {
       PrintWriter printWriter = response.getWriter();
       printWriter.println(msg);
       printWriter.close();
-
     }
   }
-
-
 }
