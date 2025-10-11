@@ -28,9 +28,17 @@ public class JWTCheckFilter extends OncePerRequestFilter {
       return true;
     }
 
+
+
     String path = request.getRequestURI();
 
     log.info("check uri.............." + path);
+
+
+    if(path.startsWith("/api/recommendations")) {
+      return true;  // ← 이 부분 추가 필요!
+    }
+
 
     //api/member/ 경로의 호출은 체크하지 않음
     if(path.startsWith("/api/member/")) {
@@ -49,6 +57,8 @@ public class JWTCheckFilter extends OncePerRequestFilter {
 
     return false;
   }
+
+
 
   @Override
   protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
