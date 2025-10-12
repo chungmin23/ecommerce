@@ -28,11 +28,16 @@ public class Orders {
     @JoinColumn(name = "member_email", nullable = false)
     private Member member;
 
+    @Setter
     private int totalAmount;      // 총 상품 금액
 
+
+
     @Builder.Default
+    @Setter
     private int discountAmount = 0;  // 할인 금액 (쿠폰 등)
 
+    @Setter
     private int finalAmount;      // 최종 결제 금액
 
     @Builder.Default

@@ -1,17 +1,21 @@
 package org.shop.apiserver.infrastructure.persistence.jpa;
 
+import jakarta.persistence.LockModeType;
 import org.shop.apiserver.domain.model.product.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long>{
+
+  // 비관적 락 추가
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("SELECT p FROM Product p WHERE p.pno = :pno")
+  Optional<Product> findByIdWithPessimisticLock(@Param("pno") Long pno);
+
 
   @EntityGraph(attributePaths = "imageList")
   @Query("select p from Product p where p.pno = :pno")
