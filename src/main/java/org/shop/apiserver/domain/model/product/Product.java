@@ -28,6 +28,10 @@ public class Product {
 
   private boolean delFlag;
 
+  @Column(nullable = false)
+  @Builder.Default
+  private int stock = 0;
+
 
   public void changeDel(boolean delFlag) {
     this.delFlag = delFlag;
@@ -38,6 +42,26 @@ public class Product {
   @Builder.Default
   @BatchSize(size = 20)
   private List<ProductImage> imageList = new ArrayList<>();
+
+  // 재고 감소 메서드
+  public void decreaseStock(int quantity) {
+    if (this.stock < quantity) {
+      throw new IllegalStateException(
+              String.format("재고 부족: 현재 %d개, 요청 %d개", this.stock, quantity)
+      );
+    }
+    this.stock -= quantity;
+  }
+
+  // 재고 증가 메서드 (주문 취소 시)
+  public void increaseStock(int quantity) {
+    this.stock += quantity;
+  }
+
+  // 재고 설정 메서드
+  public void changeStock(int stock) {
+    this.stock = stock;
+  }
 
   public void changePrice(int price) {
     this.price = price;
