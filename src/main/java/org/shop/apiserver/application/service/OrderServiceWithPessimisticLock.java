@@ -77,8 +77,6 @@ public class OrderServiceWithPessimisticLock implements OrderService {
             totalAmount += product.getPrice() * itemDTO.getQty();
         }
 
-        // ... 나머지 로직 동일
-
         int discountAmount = 0;
         if (orderDTO.getMemberCouponId() != null) {
             try {

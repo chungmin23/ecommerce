@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
@@ -41,10 +42,11 @@ public class OrderServiceWithRedisLock implements OrderService {
     private final PaymentService paymentService;
     private final CouponService couponService;
     private final RedisLockService redisLockService;  // ✅ Redis Lock 추가
+    private final ProductStockService productStockService;
 
     @Override
     public String createOrder(OrderDTO orderDTO) {
-        log.info("🔓 Creating order with Redis Distributed Lock");
+        log.info("🛒 Creating order (Deadlock-Free, RedisLock + REQUIRES_NEW)");
 
         Member member = memberRepository.findById(orderDTO.getEmail())
                 .orElseThrow(() -> new NoSuchElementException("회원을 찾을 수 없습니다."));
@@ -59,22 +61,14 @@ public class OrderServiceWithRedisLock implements OrderService {
 
         int totalAmount = 0;
 
-        // ✅ Redis 분산락 사용
-        for (OrderItemDTO itemDTO : orderDTO.getOrderItems()) {
-            String lockKey = "product:lock:" + itemDTO.getPno();
+        // ✅ Deadlock 방지: 상품번호 오름차순 정렬
+        List<OrderItemDTO> sortedItems = orderDTO.getOrderItems().stream()
+                .sorted(Comparator.comparing(OrderItemDTO::getPno))
+                .collect(Collectors.toList());
 
-            Product product = redisLockService.executeWithLock(
-                    lockKey,
-                    5,
-                    10,
-                    () -> {
-                        Product p = productRepository.findById(itemDTO.getPno())
-                                .orElseThrow(() -> new NoSuchElementException("상품을 찾을 수 없습니다."));
-
-                        p.decreaseStock(itemDTO.getQty());
-                        return productRepository.save(p);
-                    }
-            );
+        for (OrderItemDTO itemDTO : sortedItems) {
+            // ✅ 분리된 서비스로 트랜잭션 + 락 처리
+            Product product = productStockService.decreaseStockWithLock(itemDTO.getPno(), itemDTO.getQty());
 
             OrderItem orderItem = OrderItem.builder()
                     .product(product)
@@ -86,8 +80,7 @@ public class OrderServiceWithRedisLock implements OrderService {
             totalAmount += product.getPrice() * itemDTO.getQty();
         }
 
-        // ... 나머지 로직 동일
-
+        // 쿠폰 처리
         int discountAmount = 0;
         if (orderDTO.getMemberCouponId() != null) {
             try {
@@ -106,6 +99,7 @@ public class OrderServiceWithRedisLock implements OrderService {
         order.setDiscountAmount(discountAmount);
         order.setFinalAmount(finalAmount);
 
+        // 배송 정보
         DeliveryDTO deliveryDTO = orderDTO.getDelivery();
         Delivery delivery = Delivery.builder()
                 .receiverName(deliveryDTO.getReceiverName())
@@ -119,11 +113,12 @@ public class OrderServiceWithRedisLock implements OrderService {
         order.setDelivery(delivery);
         orderRepository.save(order);
 
+        // 결제 처리
         String paymentMethod = orderDTO.getPaymentMethod() != null ?
                 orderDTO.getPaymentMethod() : "CARD";
         paymentService.processPayment(orderNumber, paymentMethod);
 
-        log.info("Order created with Redis lock: {}", orderNumber);
+        log.info("✅ Order created successfully: {}", orderNumber);
         return orderNumber;
     }
 
@@ -140,16 +135,13 @@ public class OrderServiceWithRedisLock implements OrderService {
             throw new IllegalStateException("취소할 수 없는 주문 상태입니다.");
         }
 
-        // ✅ Redis 분산락으로 재고 복구
-        for (OrderItem item : order.getOrderItems()) {
-            String lockKey = "product:lock:" + item.getProduct().getPno();
+        // ✅ Deadlock-Free: 상품번호 기준 정렬 + 독립 트랜잭션 처리
+        List<OrderItem> sortedItems = order.getOrderItems().stream()
+                .sorted(Comparator.comparing(item -> item.getProduct().getPno()))
+                .collect(Collectors.toList());
 
-            redisLockService.executeWithLock(lockKey, 5, 10, () -> {
-                Product product = productRepository.findById(item.getProduct().getPno())
-                        .orElseThrow();
-                product.increaseStock(item.getQty());
-                productRepository.save(product);
-            });
+        for (OrderItem item : sortedItems) {
+            productStockService.increaseStockWithLock(item.getProduct().getPno(), item.getQty());
         }
 
         if (order.getPayment() != null) {
@@ -157,10 +149,9 @@ public class OrderServiceWithRedisLock implements OrderService {
         }
 
         order.changeStatus(OrderStatus.CANCELLED);
-        log.info("Order cancelled with Redis lock: {}", order.getOrderNumber());
+        log.info("♻️ Order cancelled successfully: {}", order.getOrderNumber());
     }
 
-    // 나머지 메서드들 구현...
     private String generateOrderNumber() {
         String timestamp = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
