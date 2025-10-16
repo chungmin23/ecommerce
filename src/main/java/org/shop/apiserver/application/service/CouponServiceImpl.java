@@ -5,30 +5,49 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.shop.apiserver.application.dto.CouponDTO;
 import org.shop.apiserver.application.dto.MemberCouponDTO;
+import org.shop.apiserver.application.port.CouponPublisher;
+import org.shop.apiserver.domain.event.CouponIssueEvent;
 import org.shop.apiserver.domain.model.coupon.Coupon;
 import org.shop.apiserver.domain.model.coupon.MemberCoupon;
 import org.shop.apiserver.domain.model.member.Member;
 import org.shop.apiserver.infrastructure.persistence.jpa.CouponRepository;
 import org.shop.apiserver.infrastructure.persistence.jpa.MemberCouponRepository;
 import org.shop.apiserver.infrastructure.persistence.jpa.MemberRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
+/**
+ * CouponService - 통합 구현
+ * 비동기/동기 처리는 CouponPublisher 구현체에 따라 자동 선택됨
+ * 
+ * 비동기: @ConditionalOnProperty coupon.issue.async=true → KafkaCouponPublisher 주입
+ * 동기: @ConditionalOnProperty coupon.issue.async=false → DirectCouponPublisher 주입
+ */
 @Service
 @Transactional
 @Log4j2
 @RequiredArgsConstructor
+@Primary
 public class CouponServiceImpl implements CouponService {
 
     private final CouponRepository couponRepository;
     private final MemberCouponRepository memberCouponRepository;
     private final MemberRepository memberRepository;
+    private final CouponPublisher couponPublisher;        // 아웃바운드 포트
+    private final CouponIssueSagaService sagaService;     // 선착순 처리
+
+    @Value("${coupon.issue.async:false}")
+    private boolean asyncIssue;
 
     @Override
     public Long createCoupon(CouponDTO dto) {
+        log.info("[CouponService] 쿠폰 생성 시작 - couponCode: {}", dto.getCouponCode());
+
         Coupon coupon = Coupon.builder()
                 .couponCode(dto.getCouponCode())
                 .couponName(dto.getCouponName())
@@ -39,7 +58,16 @@ public class CouponServiceImpl implements CouponService {
                 .active(true)
                 .build();
 
-        return couponRepository.save(coupon).getCouponId();
+        Coupon savedCoupon = couponRepository.save(coupon);
+
+        // 선착순 쿠폰인 경우 재고 초기화
+        if (dto.getStock() != null && dto.getStock() > 0) {
+            sagaService.initializeCouponStock(savedCoupon.getCouponId(), dto.getStock());
+            log.info("[CouponService] 선착순 쿠폰 재고 초기화 - couponId: {}, stock: {}", 
+                    savedCoupon.getCouponId(), dto.getStock());
+        }
+
+        return savedCoupon.getCouponId();
     }
 
     @Override
@@ -52,23 +80,50 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     public void issueCoupon(String email, String couponCode) {
-        Member member = memberRepository.findById(email)
-                .orElseThrow(() -> new NoSuchElementException("회원 없음"));
+        log.info("[CouponService] 쿠폰 발급 요청 - email: {}, couponCode: {}, async: {}", 
+                email, couponCode, asyncIssue);
 
-        Coupon coupon = couponRepository.findByCouponCode(couponCode)
-                .orElseThrow(() -> new NoSuchElementException("쿠폰 없음"));
+        try {
+            // 1. 기본 유효성 검사
+            Member member = memberRepository.findById(email)
+                    .orElseThrow(() -> {
+                        log.warn("[CouponService] 회원 없음 - email: {}", email);
+                        return new NoSuchElementException("회원 없음");
+                    });
 
-        if (!coupon.isAvailable()) {
-            throw new IllegalStateException("사용 불가 쿠폰");
+            Coupon coupon = couponRepository.findByCouponCode(couponCode)
+                    .orElseThrow(() -> {
+                        log.warn("[CouponService] 쿠폰 없음 - couponCode: {}", couponCode);
+                        return new NoSuchElementException("쿠폰 없음");
+                    });
+
+            // 2. 쿠폰 기본 유효성 검사
+            if (!coupon.isAvailable()) {
+                log.warn("[CouponService] 사용 불가 쿠폰 - couponCode: {}", couponCode);
+                throw new IllegalStateException("사용 불가 쿠폰");
+            }
+
+            // 3. 이미 발급받은 쿠폰 확인
+            if (memberCouponRepository.existsByMemberEmailAndCouponCouponCode(email, couponCode)) {
+                log.warn("[CouponService] 이미 발급된 쿠폰 - email: {}, couponCode: {}", email, couponCode);
+                throw new IllegalStateException("이미 발급된 쿠폰");
+            }
+
+            // 4. 이벤트 발행 (구현체에 따라 Kafka 또는 Direct 처리)
+            CouponIssueEvent event = CouponIssueEvent.pending(email, couponCode, coupon.getCouponId());
+            couponPublisher.publish(event);
+
+            log.info("[CouponService] 쿠폰 발급 요청 완료 - eventId: {}", event.getEventId());
+
+        } catch (NoSuchElementException | IllegalStateException e) {
+            log.error("[CouponService] 쿠폰 발급 실패 - email: {}, couponCode: {}, error: {}", 
+                    email, couponCode, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("[CouponService] 예외 발생 - email: {}, couponCode: {}, error: {}", 
+                    email, couponCode, e.getMessage(), e);
+            throw new RuntimeException("쿠폰 발급 요청 처리 중 오류가 발생했습니다", e);
         }
-
-        MemberCoupon memberCoupon = MemberCoupon.builder()
-                .member(member)
-                .coupon(coupon)
-                .used(false)
-                .build();
-
-        memberCouponRepository.save(memberCoupon);
     }
 
     @Override
@@ -80,20 +135,32 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     public int useCoupon(Long memberCouponId, String email, int orderAmount) {
+        log.info("[CouponService] 쿠폰 사용 - memberCouponId: {}, email: {}, orderAmount: {}", 
+                memberCouponId, email, orderAmount);
+
         MemberCoupon mc = memberCouponRepository.findByIdAndEmail(memberCouponId, email)
-                .orElseThrow(() -> new NoSuchElementException("쿠폰 없음"));
+                .orElseThrow(() -> {
+                    log.warn("[CouponService] 쿠폰 없음 - memberCouponId: {}", memberCouponId);
+                    return new NoSuchElementException("쿠폰 없음");
+                });
 
         if (!mc.isUsable()) {
+            log.warn("[CouponService] 사용 불가 쿠폰 - memberCouponId: {}", memberCouponId);
             throw new IllegalStateException("사용 불가 쿠폰");
         }
 
         int discount = mc.getCoupon().calculateDiscount(orderAmount);
 
         if (discount == 0) {
+            log.warn("[CouponService] 최소 주문 금액 미달 - orderAmount: {}, minAmount: {}", 
+                    orderAmount, mc.getCoupon().getMinOrderAmount());
             throw new IllegalStateException("최소 주문 금액 미달");
         }
 
         mc.use();
+        log.info("[CouponService] 쿠폰 사용 완료 - memberCouponId: {}, discount: {}", 
+                memberCouponId, discount);
+
         return discount;
     }
 

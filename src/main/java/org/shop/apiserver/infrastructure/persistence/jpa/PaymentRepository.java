@@ -29,4 +29,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     // 결제 상태별 조회
     @Query("SELECT p FROM Payment p WHERE p.status = :status")
     List<Payment> findByStatus(@Param("status") PaymentStatus status);
+
+    // 주문 번호로 결제 정보 조회
+    @Query("SELECT p FROM Payment p " +
+            "LEFT JOIN FETCH p.order " +
+            "WHERE p.order.orderNumber = :orderNumber")
+    Optional<Payment> findByOrder_OrderNumber(@Param("orderNumber") String orderNumber);
 }
