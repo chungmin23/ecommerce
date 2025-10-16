@@ -21,4 +21,5 @@ public class CouponDTO {
     private Integer minOrderAmount;
     private LocalDateTime endDate;
     private boolean active;
+    private Long stock;  // 선착순 쿠폰의 남은 재고
 }
