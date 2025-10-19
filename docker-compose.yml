@@ -10,7 +10,7 @@ services:
       MYSQL_USER: apidbuser               # 애플리케이션 계정
       MYSQL_PASSWORD: apidbuser           # 애플리케이션 비번
     ports:
-      - "3312:3306"
+      - "3306:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
 
