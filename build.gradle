@@ -92,20 +92,16 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-    
-    // classpath 길이 문제 해결
+
+    // classpath 길이 문제 해결을 위한 JVM 옵션만 유지
     jvmArgs = [
-        '-Didea.junit.sm_runner.base_dir=' + project.buildDir,
-        '-Didea.junit.sm_runner.exclude.specs=true'
+            '-Didea.junit.sm_runner.base_dir=' + project.buildDir,
+            '-Didea.junit.sm_runner.exclude.specs=true'
     ]
-    
-    // classpath jar 방식으로 변경
-    classpath = files(project.sourceSets.test.compileClasspath) + files(project.sourceSets.test.output)
-    
-    // 추가 설정
+
     systemProperties = [
-        'idea.junit.sm_runner.base_dir': project.buildDir,
-        'idea.junit.sm_runner.exclude.specs': 'true'
+            'idea.junit.sm_runner.base_dir': project.buildDir,
+            'idea.junit.sm_runner.exclude.specs': 'true'
     ]
 }
 
