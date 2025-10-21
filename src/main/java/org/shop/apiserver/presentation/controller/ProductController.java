@@ -49,14 +49,6 @@ public class ProductController {
     //서비스 호출
     Long pno = productService.register(productDTO);
 
-    try {
-      Thread.sleep(2000);
-    } catch (InterruptedException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-
-
     return Map.of("result", pno);
   }
 
@@ -74,26 +66,12 @@ public class ProductController {
 
     log.info("list............." + pageRequestDTO);
 
-    try {
-      Thread.sleep(1000);
-    } catch (InterruptedException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-
     return productService.getList(pageRequestDTO);
 
   }
 
   @GetMapping("/{pno}")
   public ProductDTO read(@PathVariable(name="pno") Long pno) {
-
-    try {
-      Thread.sleep(2000);
-    } catch (InterruptedException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
 
     return productService.get(pno);
   }

@@ -51,7 +51,12 @@ public class JWTCheckFilter extends OncePerRequestFilter {
     }
 
     // 상품 목록/상세 조회는 인증 없이 허용
-    if(path.startsWith("/api/products/list") || path.matches("/api/products/\\d+")) {
+    if(path.startsWith("/api/products/list") || path.matches("/api/products/\\d+.*")) {
+      return true;
+    }
+
+    // 활성 쿠폰 목록 조회는 인증 없이 허용
+    if(path.equals("/api/coupons/active")) {
       return true;
     }
 
