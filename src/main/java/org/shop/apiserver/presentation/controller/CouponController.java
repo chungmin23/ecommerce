@@ -6,6 +6,7 @@ import org.shop.apiserver.application.dto.CouponDTO;
 import org.shop.apiserver.application.dto.MemberCouponDTO;
 import org.shop.apiserver.application.facade.CouponFacade;
 import org.shop.apiserver.application.service.CouponService;
+import org.shop.apiserver.infrastructure.persistence.jpa.CouponRepository;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,6 +22,7 @@ public class CouponController {
 
     private final CouponService couponService;
     private final CouponFacade couponFacade;
+    private final CouponRepository couponRepository;
 
     // 쿠폰 생성 (관리자)
     @PreAuthorize("hasAnyRole('ROLE_ADMIN')")
@@ -36,25 +38,15 @@ public class CouponController {
         return couponService.getActiveCoupons();
     }
 
-    // 쿠폰 발급 (기본 - 동기/비동기는 설정에 따라)
-    @PreAuthorize("hasAnyRole('ROLE_USER')")
+    // 쿠폰 발급 (누구나 접근 가능 - SecurityConfig에서 permitAll로 설정)
     @PostMapping("/issue/{couponCode}")
     public Map<String, String> issueCoupon(
             @PathVariable String couponCode,
             Principal principal) {
-        couponService.issueCoupon(principal.getName(), couponCode);
+        couponFacade.issueCouponAuto(principal.getName(), couponCode);
         return Map.of("result", "SUCCESS");
     }
 
-    // 선착순 쿠폰 발급 (재고 포함)
-    @PreAuthorize("hasAnyRole('ROLE_USER')")
-    @PostMapping("/issue-limited/{couponCode}")
-    public Map<String, String> issueLimitedCoupon(
-            @PathVariable String couponCode,
-            Principal principal) {
-        couponFacade.issueLimitedCoupon(principal.getName(), couponCode);
-        return Map.of("result", "SUCCESS");
-    }
 
     // 내 쿠폰 목록
     @PreAuthorize("hasAnyRole('ROLE_USER')")
@@ -76,4 +68,6 @@ public class CouponController {
     public List<MemberCouponDTO> getUsableCouponsForCheckout(Principal principal) {
         return couponFacade.getUsableCouponsForCheckout(principal.getName());
     }
+
+
 }

@@ -1,7 +1,6 @@
 package org.shop.apiserver.application.service;
 
 import org.shop.apiserver.application.dto.*;
-import org.shop.apiserver.domain.event.CouponIssueEvent;
 import org.shop.apiserver.domain.model.delivery.Delivery;
 import org.shop.apiserver.domain.model.delivery.DeliveryStatus;
 import org.shop.apiserver.domain.model.member.Member;
@@ -41,7 +40,6 @@ public class OrderServiceImpl implements OrderService {
     private final MemberRepository memberRepository;
     private final PaymentService paymentService;
     private final CouponService couponService;
-    private final OutboxEventCreatorService outboxEventCreatorService;
 
     @Override
     public String createOrder(OrderDTO orderDTO) {
@@ -121,30 +119,12 @@ public class OrderServiceImpl implements OrderService {
         orderRepository.save(order);
         log.info("[OrderService] 주문 저장 완료 - orderNumber: {}", orderNumber);
 
-        // ✅ 9. Outbox 이벤트 생성 (같은 트랜잭션)
-        CouponIssueEvent couponEvent = CouponIssueEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .memberEmail(orderDTO.getEmail())
-                .couponCode("COUPON_" + orderNumber)
-                .couponId(orderDTO.getMemberCouponId() != null ? 
-                        orderDTO.getMemberCouponId() : 0L)
-                .timestamp(LocalDateTime.now())
-                .status("PENDING")
-                .retryCount(0)
-                .build();
-
-        outboxEventCreatorService.createOutboxEvent(
-                "coupon-issue-events",
-                couponEvent
-        );
-        log.info("[OrderService] Outbox 이벤트 생성 완료");
-
-        // 10. 결제 자동 처리
+        // 9. 결제 자동 처리
         String paymentMethod = orderDTO.getPaymentMethod() != null ?
                 orderDTO.getPaymentMethod() : "CARD";
         paymentService.processPayment(orderNumber, paymentMethod);
 
-        // 11. 장바구니 비우기 (선택적)
+        // 10. 장바구니 비우기 (선택적)
         // cartItemRepository에서 해당 회원의 장바구니 아이템 삭제 가능
 
         log.info("[OrderService] 주문 생성 완료 - orderNumber: {}", orderNumber);

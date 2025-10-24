@@ -35,7 +35,15 @@ public enum ErrorCode {
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "A002", "유효하지 않은 토큰입니다."),
     EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "A003", "만료된 토큰입니다."),
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.NOT_FOUND, "A004", "리프레시 토큰을 찾을 수 없습니다."),
-    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "A005", "유효하지 않은 리프레시 토큰입니다.");
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "A005", "유효하지 않은 리프레시 토큰입니다."),
+    
+    // Coupon
+    COUPON_NOT_FOUND(HttpStatus.NOT_FOUND, "COUPON001", "쿠폰을 찾을 수 없습니다."),
+    COUPON_ALREADY_ISSUED(HttpStatus.CONFLICT, "COUPON002", "이미 발급받은 쿠폰입니다."),
+    COUPON_STOCK_EMPTY(HttpStatus.GONE, "COUPON003", "쿠폰이 모두 소진되었습니다."),
+    COUPON_UNAVAILABLE(HttpStatus.BAD_REQUEST, "COUPON004", "사용 불가 쿠폰입니다."),
+    COUPON_INSUFFICIENT_ORDER_AMOUNT(HttpStatus.BAD_REQUEST, "COUPON005", "최소 주문 금액 미달입니다."),
+    COUPON_LOCK_ACQUISITION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "COUPON006", "현재 많은 요청이 있습니다. 잠시 후 다시 시도해주세요.");
     
     private final HttpStatus status;
     private final String code;

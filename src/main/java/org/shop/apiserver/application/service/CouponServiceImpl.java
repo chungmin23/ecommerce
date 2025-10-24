@@ -5,15 +5,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.shop.apiserver.application.dto.CouponDTO;
 import org.shop.apiserver.application.dto.MemberCouponDTO;
-import org.shop.apiserver.application.port.CouponPublisher;
-import org.shop.apiserver.domain.event.CouponIssueEvent;
 import org.shop.apiserver.domain.model.coupon.Coupon;
 import org.shop.apiserver.domain.model.coupon.MemberCoupon;
 import org.shop.apiserver.domain.model.member.Member;
 import org.shop.apiserver.infrastructure.persistence.jpa.CouponRepository;
 import org.shop.apiserver.infrastructure.persistence.jpa.MemberCouponRepository;
 import org.shop.apiserver.infrastructure.persistence.jpa.MemberRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -23,10 +20,7 @@ import java.util.stream.Collectors;
 
 /**
  * CouponService - 통합 구현
- * 비동기/동기 처리는 CouponPublisher 구현체에 따라 자동 선택됨
- * 
- * 비동기: @ConditionalOnProperty coupon.issue.async=true → KafkaCouponPublisher 주입
- * 동기: @ConditionalOnProperty coupon.issue.async=false → DirectCouponPublisher 주입
+ * 동기 처리 방식으로 쿠폰 발급
  */
 @Service
 @Transactional
@@ -38,15 +32,15 @@ public class CouponServiceImpl implements CouponService {
     private final CouponRepository couponRepository;
     private final MemberCouponRepository memberCouponRepository;
     private final MemberRepository memberRepository;
-    private final CouponPublisher couponPublisher;        // 아웃바운드 포트
-    private final CouponIssueSagaService sagaService;     // 선착순 처리
-
-    @Value("${coupon.issue.async:false}")
-    private boolean asyncIssue;
 
     @Override
     public Long createCoupon(CouponDTO dto) {
         log.info("[CouponService] 쿠폰 생성 시작 - couponCode: {}", dto.getCouponCode());
+
+        // stock 값을 maxIssueCount에 매핑
+        int maxIssueCount = (dto.getStock() != null && dto.getStock() > 0) 
+                ? dto.getStock().intValue() 
+                : 0;
 
         Coupon coupon = Coupon.builder()
                 .couponCode(dto.getCouponCode())
@@ -55,16 +49,16 @@ public class CouponServiceImpl implements CouponService {
                 .discountValue(dto.getDiscountValue())
                 .minOrderAmount(dto.getMinOrderAmount())
                 .endDate(dto.getEndDate())
+                .maxIssueCount(maxIssueCount)
                 .active(true)
                 .build();
 
         Coupon savedCoupon = couponRepository.save(coupon);
 
-        // 선착순 쿠폰인 경우 재고 초기화
-        if (dto.getStock() != null && dto.getStock() > 0) {
-            sagaService.initializeCouponStock(savedCoupon.getCouponId(), dto.getStock());
-            log.info("[CouponService] 선착순 쿠폰 재고 초기화 - couponId: {}, stock: {}", 
-                    savedCoupon.getCouponId(), dto.getStock());
+        // 선착순 쿠폰인 경우 로그 출력
+        if (maxIssueCount > 0) {
+            log.info("[CouponService] 선착순 쿠폰 생성 완료 - couponId: {}, stock: {}", 
+                    savedCoupon.getCouponId(), maxIssueCount);
         }
 
         return savedCoupon.getCouponId();
@@ -80,8 +74,8 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     public void issueCoupon(String email, String couponCode) {
-        log.info("[CouponService] 쿠폰 발급 요청 - email: {}, couponCode: {}, async: {}", 
-                email, couponCode, asyncIssue);
+        log.info("[CouponService] 쿠폰 발급 요청 - email: {}, couponCode: {}", 
+                email, couponCode);
 
         try {
             // 1. 기본 유효성 검사
@@ -109,11 +103,15 @@ public class CouponServiceImpl implements CouponService {
                 throw new IllegalStateException("이미 발급된 쿠폰");
             }
 
-            // 4. 이벤트 발행 (구현체에 따라 Kafka 또는 Direct 처리)
-            CouponIssueEvent event = CouponIssueEvent.pending(email, couponCode, coupon.getCouponId());
-            couponPublisher.publish(event);
+            // 4. 쿠폰 발급 처리 (동기)
+            MemberCoupon memberCoupon = MemberCoupon.builder()
+                    .member(member)
+                    .coupon(coupon)
+                    .build();
+            
+            memberCouponRepository.save(memberCoupon);
 
-            log.info("[CouponService] 쿠폰 발급 요청 완료 - eventId: {}", event.getEventId());
+            log.info("[CouponService] 쿠폰 발급 완료 - email: {}, couponCode: {}", email, couponCode);
 
         } catch (NoSuchElementException | IllegalStateException e) {
             log.error("[CouponService] 쿠폰 발급 실패 - email: {}, couponCode: {}, error: {}", 
@@ -122,7 +120,7 @@ public class CouponServiceImpl implements CouponService {
         } catch (Exception e) {
             log.error("[CouponService] 예외 발생 - email: {}, couponCode: {}, error: {}", 
                     email, couponCode, e.getMessage(), e);
-            throw new RuntimeException("쿠폰 발급 요청 처리 중 오류가 발생했습니다", e);
+            throw new RuntimeException("쿠폰 발급 중 오류가 발생했습니다", e);
         }
     }
 

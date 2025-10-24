@@ -38,9 +38,21 @@ public class Coupon {
     @Builder.Default
     private boolean active = true;  // 활성화 여부
 
+    @Builder.Default
+    @Column(nullable = false)
+    private int issuedCount = 0;  // 발급된 쿠폰 수
+
+    @Column(nullable = false)
+    private int maxIssueCount;  // 최대 발급 가능 수
+
     // 사용 가능 여부
     public boolean isAvailable() {
         return active && LocalDateTime.now().isBefore(endDate);
+    }
+
+    // 선착순 쿠폰 여부 (수량 제한이 있는 쿠폰)
+    public boolean isLimitedStock() {
+        return maxIssueCount > 0;
     }
 
     // 할인 금액 계산

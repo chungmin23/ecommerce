@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.shop.apiserver.application.dto.CouponDTO;
 import org.shop.apiserver.application.dto.MemberCouponDTO;
-import org.shop.apiserver.application.service.CouponIssueSagaService;
 import org.shop.apiserver.application.service.CouponService;
 import org.shop.apiserver.domain.model.coupon.Coupon;
 import org.shop.apiserver.infrastructure.persistence.jpa.CouponRepository;
@@ -28,52 +27,63 @@ import java.util.List;
  */
 @Component
 @Transactional
-@RequiredArgsConstructor
 @Log4j2
+@RequiredArgsConstructor
 public class CouponFacade {
 
     private final CouponService couponService;
-    private final CouponIssueSagaService sagaService;
     private final CouponRepository couponRepository;
+
+    /**
+     * 쿠폰 발급 (수량에 따라 자동으로 선착순/일반 처리)
+     * 
+     * 처리 로직:
+     * - maxIssueCount > 0: 선착순 모드 (재고 관리)
+     * - maxIssueCount = 0: 일반 모드 (재고 무제한)
+     */
+    public void issueCouponAuto(String email, String couponCode) {
+        log.info("[CouponFacade] 쿠폰 발급 요청 - email: {}, couponCode: {}", email, couponCode);
+
+        try {
+            // 쿠폰 조회
+            Coupon coupon = couponRepository.findByCouponCode(couponCode)
+                    .orElseThrow(() -> new IllegalArgumentException("쿠폰을 찾을 수 없습니다"));
+
+            // 수량에 따라 자동 판단
+            if (coupon.isLimitedStock()) {
+                log.info("[CouponFacade] 선착순 쿠폰 발급 - maxIssueCount: {}", coupon.getMaxIssueCount());
+                issueLimitedCoupon(email, couponCode);
+            } else {
+                log.info("[CouponFacade] 일반 쿠폰 발급 - 수량 제한 없음");
+                couponService.issueCoupon(email, couponCode);
+            }
+
+        } catch (Exception e) {
+            log.error("[CouponFacade] 쿠폰 발급 실패 - email: {}, couponCode: {}, error: {}", 
+                    email, couponCode, e.getMessage());
+            throw e;
+        }
+    }
 
     /**
      * 선착순 쿠폰 발급 (재고 감소 포함)
      * 
      * 처리 흐름:
-     * 1. 재고 확인 및 감소
-     * 2. 쿠폰 발급
-     * 3. 로깅 및 예외 처리
+     * 1. 쿠폰 발급 처리
+     * 2. 로깅 및 예외 처리
      */
     public void issueLimitedCoupon(String email, String couponCode) {
-        log.info("[CouponFacade] 선착순 쿠폰 발급 시작 - email: {}, couponCode: {}", email, couponCode);
+        log.info("[CouponFacade] 선착순 쿠폰 발급 시작 - email: {}, couponCode: {}", 
+                email, couponCode);
 
         try {
-            // 1. 쿠폰 ID 조회
-            Coupon coupon = couponRepository.findByCouponCode(couponCode)
-                    .orElseThrow(() -> new IllegalArgumentException("쿠폰을 찾을 수 없습니다"));
-
-            // 2. 재고 확인 및 감소
-            long remainingStock = sagaService.decrementCouponStock(coupon.getCouponId());
-
-            if (remainingStock < 0) {
-                log.warn("[CouponFacade] 재고 부족 - couponCode: {}", couponCode);
-                throw new IllegalStateException("쿠폰이 모두 소진되었습니다");
-            }
-
-            // 3. 쿠폰 발급
+            // 기본 쿠폰 발급 처리
             couponService.issueCoupon(email, couponCode);
-
-            log.info("[CouponFacade] 선착순 쿠폰 발급 완료 - email: {}, remainingStock: {}", 
-                    email, remainingStock);
-
-        } catch (IllegalStateException e) {
-            log.warn("[CouponFacade] 선착순 쿠폰 발급 실패 (재고 부족) - email: {}, error: {}", 
-                    email, e.getMessage());
-            throw e;
+            log.info("[CouponFacade] 선착순 쿠폰 발급 완료 - email: {}", email);
         } catch (Exception e) {
-            log.error("[CouponFacade] 선착순 쿠폰 발급 실패 - email: {}, error: {}", 
-                    email, e.getMessage(), e);
-            throw new RuntimeException("선착순 쿠폰 발급 처리 중 오류가 발생했습니다", e);
+            log.error("[CouponFacade] 선착순 쿠폰 발급 실패 - email: {}, couponCode: {}, error: {}", 
+                    email, couponCode, e.getMessage());
+            throw e;
         }
     }
 
@@ -150,7 +160,7 @@ public class CouponFacade {
                         orderAmount >= coupon.getMinOrderAmount())
                 .toList();
 
-        log.info("[CouponFacade] 조회 완료 - count: {}", availableCoupons.size());
+        log.info("[CouponFacade] 사용 가능 쿠폰 조회 완료 - count: {}", availableCoupons.size());
 
         return availableCoupons;
     }
@@ -165,7 +175,7 @@ public class CouponFacade {
                 .filter(MemberCouponDTO::isUsable)
                 .toList();
 
-        log.info("[CouponFacade] 조회 완료 - count: {}", usableCoupons.size());
+        log.info("[CouponFacade] 사용 가능 쿠폰 목록 조회 완료 - count: {}", usableCoupons.size());
 
         return usableCoupons;
     }
